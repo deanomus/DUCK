@@ -3,6 +3,7 @@ from django.forms.models import model_to_dict
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.template import loader
+from datetime import datetime, timedelta
 from duckchat.models import ChatRoom, Message
 from duckchat.services.UserService import UserService
 
@@ -15,9 +16,13 @@ def landingpage(request, room_id=None, passwd=None):
     if chatroom.type == 2:  # 2 is Private
         if passwd != chatroom.password:
             return HttpResponse('Du brauchst das korrekte Passwort, um diesem Chatroom beizutreten')
+    hour_ago = datetime.now() - timedelta(hours=1)
     messages = Message.objects.filter(room=room_id)
     lastMessage = messages.last()
-    lastMessageID = lastMessage.id
+    messages = messages.filter(timestamp__gt=hour_ago)
+    lastMessageID = 0
+    if lastMessage:
+        lastMessageID = lastMessage.id
     users = UserService.get_current_users()
     available_rooms = ChatRoom.objects.all()
 
@@ -48,7 +53,7 @@ def getMessages(request):
     messages = Message.objects.filter(room=room_id).filter(pk__gt=lastmessageID)
     prettymessages = []
     for message in messages:
-        prettymessage = prettifyMessages(user, message)
+        prettymessage = prettifyMessages(message.sender, message)
         prettymessages.append(prettymessage)
 
     return JsonResponse(prettymessages, safe=False)
@@ -76,10 +81,6 @@ def acceptMessage(request):
         image = 'user_icons/no-img.png'
     else:
         image = image.url
-
-
-    # statt message soll sammlung as messages zurückgegeben werden, wie beim poll
-    # lastmessageID steht in POST
 
     data = []
     lastID = request.POST.get('lastmessageID', 1)
